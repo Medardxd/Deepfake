@@ -104,7 +104,7 @@ class DeepfakeDetector:
                 print("=" * 50)
 
                 # Extract results
-                # Expected format: [{'label': 'ai', 'score': 0.95}, {'label': 'human', 'score': 0.05}]
+                # Expected format: [{'label': 'ai', 'score': 0.95}, {'label': 'hum', 'score': 0.05}]
                 ai_score = 0.0
                 human_score = 0.0
 
