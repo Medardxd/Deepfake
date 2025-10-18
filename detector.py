@@ -1,41 +1,55 @@
 import os
 from PIL import Image
 import numpy as np
+from transformers import pipeline
 
 
 class DeepfakeDetector:
     """
-    Deepfake detection module.
+    AI-Generated Image Detection module using HuggingFace's pre-trained model.
 
-    This is a placeholder implementation that demonstrates the structure.
-    Replace the analyze() method with your actual ML model when ready.
+    Uses: Ateeqq/ai-vs-human-image-detector
+    - SiglipForImageClassification fine-tuned for AI vs Human detection
+    - 99.23% accuracy on test data
+    - Works on ALL image types (faces, landscapes, nature, art, etc.)
+    - Trained on latest AI generators (Midjourney v6.1, FLUX, SD 3.5, GPT-4o)
     """
 
-    def __init__(self, model_path=None):
+    def __init__(self, model_name=None):
         """
         Initialize the detector.
 
         Args:
-            model_path: Path to the trained model (optional for now)
+            model_name: HuggingFace model name (default: Ateeqq/ai-vs-human-image-detector)
         """
-        self.model_path = model_path
+        if model_name is None:
+            model_name = "Ateeqq/ai-vs-human-image-detector"
+
+        self.model_name = model_name
         self.model = None
+        self._load_model()
 
-        # Load model if path is provided
-        if model_path and os.path.exists(model_path):
-            self._load_model(model_path)
-
-    def _load_model(self, model_path):
+    def _load_model(self):
         """
-        Load the ML model from file.
-
-        TODO: Implement actual model loading
-        Example for different frameworks:
-        - TensorFlow/Keras: self.model = tf.keras.models.load_model(model_path)
-        - PyTorch: self.model = torch.load(model_path)
-        - ONNX: self.model = onnxruntime.InferenceSession(model_path)
+        Load the HuggingFace AI detection model.
+        Model will be downloaded on first run (~370MB).
         """
-        print(f"Model loading from {model_path} not yet implemented")
+        try:
+            print(f"Loading AI image detection model: {self.model_name}")
+            print("Note: First run will download the model (~370MB), please wait...")
+
+            self.model = pipeline(
+                'image-classification',
+                model=self.model_name,
+                device=-1  # Use CPU (-1), change to 0 for GPU if available
+            )
+
+            print("Model loaded successfully!")
+
+        except Exception as e:
+            print(f"Error loading model: {e}")
+            print("Falling back to placeholder mode...")
+            self.model = None
 
     def _preprocess_image(self, image_path):
         """
@@ -57,15 +71,6 @@ class DeepfakeDetector:
         # Get basic image info
         width, height = img.size
 
-        # TODO: Add your preprocessing steps here
-        # Common steps might include:
-        # - Resize to model input size
-        # - Normalize pixel values
-        # - Convert to numpy array or tensor
-        # Example:
-        # img = img.resize((224, 224))
-        # img_array = np.array(img) / 255.0
-
         return {
             'image': img,
             'width': width,
@@ -82,36 +87,67 @@ class DeepfakeDetector:
             preprocessed_data: Preprocessed image data
 
         Returns:
-            Model predictions
+            Model predictions with confidence scores
         """
-        # TODO: Replace with actual model inference
-        # Example for different frameworks:
-        # - TensorFlow/Keras: predictions = self.model.predict(preprocessed_data)
-        # - PyTorch: predictions = self.model(preprocessed_data)
-
-        # PLACEHOLDER: Return dummy analysis based on simple heuristics
-        # This is just for demonstration - replace with real model
         img = preprocessed_data['image']
-        img_array = np.array(img)
 
-        # Simple placeholder logic (not real detection)
-        # Calculate some basic statistics as a placeholder
+        # Use the HuggingFace model if loaded
+        if self.model is not None:
+            try:
+                # Run model prediction
+                predictions = self.model(img)
+
+                # Debug: Print raw predictions to understand format
+                print("=" * 50)
+                print("RAW MODEL OUTPUT:")
+                print(predictions)
+                print("=" * 50)
+
+                # Extract results
+                # Expected format: [{'label': 'ai', 'score': 0.95}, {'label': 'human', 'score': 0.05}]
+                ai_score = 0.0
+                human_score = 0.0
+
+                for pred in predictions:
+                    label = pred['label'].lower()
+                    score = pred['score']
+
+                    print(f"Label: {label}, Score: {score}")
+
+                    if 'ai' in label or 'fake' in label or 'generated' in label or 'artificial' in label:
+                        ai_score = score
+                    elif 'hum' in label or 'real' in label or 'authentic' in label or 'natural' in label:
+                        human_score = score
+
+                print(f"Final scores - AI-Generated: {ai_score}, Human: {human_score}")
+
+                return {
+                    'ai_confidence': float(ai_score),
+                    'human_confidence': float(human_score),
+                    'predictions': predictions,
+                    'using_real_model': True
+                }
+
+            except Exception as e:
+                print(f"Error during inference: {e}")
+                print("Falling back to placeholder...")
+
+        # Fallback: placeholder logic if model fails or not loaded
+        img_array = np.array(img)
         avg_color = np.mean(img_array, axis=(0, 1))
         std_color = np.std(img_array, axis=(0, 1))
-
-        # Dummy confidence score (replace with model output)
-        # For demo purposes, use a simple heuristic
-        confidence = min(0.5 + (std_color[0] / 255.0) * 0.5, 0.99)
+        dummy_confidence = min(0.5 + (std_color[0] / 255.0) * 0.5, 0.99)
 
         return {
-            'confidence': float(confidence),
-            'avg_color': avg_color.tolist(),
-            'std_color': std_color.tolist()
+            'ai_confidence': float(dummy_confidence),
+            'human_confidence': float(1.0 - dummy_confidence),
+            'predictions': [],
+            'using_real_model': False
         }
 
     def analyze(self, image_path):
         """
-        Analyze an image for deepfake detection.
+        Analyze an image for AI-generation detection.
 
         Args:
             image_path: Path to the image file
@@ -133,31 +169,43 @@ class DeepfakeDetector:
             # Run inference
             predictions = self._run_inference(preprocessed)
 
-            # Interpret results
-            confidence = predictions['confidence']
-            is_deepfake = confidence > 0.5
+            # Extract AI confidence
+            ai_confidence = predictions['ai_confidence']
+            is_deepfake = ai_confidence > 0.5
 
             # Determine confidence level label
-            if confidence > 0.85:
+            if ai_confidence > 0.85 or ai_confidence < 0.15:
                 confidence_label = 'high'
-            elif confidence > 0.65:
+            elif ai_confidence > 0.65 or ai_confidence < 0.35:
                 confidence_label = 'medium'
             else:
                 confidence_label = 'low'
 
-            return {
+            # Prepare response
+            result = {
                 'success': True,
                 'is_deepfake': is_deepfake,
-                'confidence': round(confidence * 100, 2),
+                'confidence': round(ai_confidence * 100, 2),
                 'confidence_label': confidence_label,
-                'verdict': 'DEEPFAKE DETECTED' if is_deepfake else 'APPEARS AUTHENTIC',
+                'verdict': 'AI-GENERATED' if is_deepfake else 'APPEARS AUTHENTIC',
                 'image_info': {
                     'width': preprocessed['width'],
                     'height': preprocessed['height'],
                     'format': preprocessed['format']
                 },
-                'note': 'This is a placeholder implementation. Replace with actual ML model for production use.'
+                'model_info': {
+                    'using_real_model': predictions.get('using_real_model', False),
+                    'model_name': self.model_name if predictions.get('using_real_model', False) else 'Placeholder'
+                }
             }
+
+            # Add note if using placeholder
+            if not predictions.get('using_real_model', False):
+                result['note'] = 'Warning: Using placeholder detection. Install dependencies and restart to use the real AI model.'
+            else:
+                result['note'] = f'Analysis performed using {self.model_name} (99.23% accuracy). Works on all image types.'
+
+            return result
 
         except Exception as e:
             return {
