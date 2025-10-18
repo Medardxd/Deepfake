@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deepfake Detector</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Deepfake Detection System</h1>
+            <p class="subtitle">Upload an image to analyze for AI-generated content</p>
+        </header>
+
+        <main>
+            <!-- Upload Section -->
+            <div class="upload-section">
+                <div id="dropZone" class="drop-zone">
+                    <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <p class="drop-text">Drag and drop an image here</p>
+                    <p class="drop-or">or</p>
+                    <label for="fileInput" class="file-label">Choose File</label>
+                    <input type="file" id="fileInput" accept="image/*" hidden>
+                    <p class="file-info">Supported formats: PNG, JPG, JPEG, GIF, BMP (Max 16MB)</p>
+                </div>
+
+                <!-- Preview Section -->
+                <div id="previewSection" class="preview-section hidden">
+                    <img id="imagePreview" src="" alt="Preview">
+                    <button id="removeButton" class="remove-button">Remove Image</button>
+                </div>
+
+                <!-- Analyze Button -->
+                <button id="analyzeButton" class="analyze-button hidden">Analyze Image</button>
+            </div>
+
+            <!-- Loading Spinner -->
+            <div id="loadingSpinner" class="loading-spinner hidden">
+                <div class="spinner"></div>
+                <p>Analyzing image...</p>
+            </div>
+
+            <!-- Results Section -->
+            <div id="resultsSection" class="results-section hidden">
+                <h2>Analysis Results</h2>
+
+                <div id="verdictCard" class="verdict-card">
+                    <div class="verdict-icon">
+                        <svg id="verdictIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <!-- Icon will be populated by JavaScript -->
+                        </svg>
+                    </div>
+                    <h3 id="verdictText" class="verdict-text"></h3>
+                    <p id="confidenceText" class="confidence-text"></p>
+                </div>
+
+                <div class="result-details">
+                    <h4>Details</h4>
+                    <div class="detail-row">
+                        <span class="detail-label">Confidence Score:</span>
+                        <span id="confidenceScore" class="detail-value"></span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Confidence Level:</span>
+                        <span id="confidenceLevel" class="detail-value"></span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Image Size:</span>
+                        <span id="imageSize" class="detail-value"></span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Image Format:</span>
+                        <span id="imageFormat" class="detail-value"></span>
+                    </div>
+                </div>
+
+                <div id="noteSection" class="note-section">
+                    <p id="noteText"></p>
+                </div>
+
+                <button id="analyzeAnotherButton" class="analyze-another-button">Analyze Another Image</button>
+            </div>
+
+            <!-- Error Section -->
+            <div id="errorSection" class="error-section hidden">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+                <h3>Error</h3>
+                <p id="errorText"></p>
+                <button id="tryAgainButton" class="try-again-button">Try Again</button>
+            </div>
+        </main>
+
+        <footer>
+            <p>Deepfake Detection System - Defensive Security Tool</p>
+            <p class="disclaimer">This tool is designed for defensive security purposes only.</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
