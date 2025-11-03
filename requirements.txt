@@ -3,6 +3,9 @@ Werkzeug==3.0.1
 Pillow==10.1.0
 numpy==1.26.2
 
+# Streamlit for testing/development interface
+streamlit>=1.30.0
+
 # HuggingFace Transformers for AI-generated image detection (needs 4.37+ for SigLIP support)
 transformers>=4.40.0
 
