@@ -57,10 +57,9 @@ Deepfake/
 ├── frame_classifier.py       # CLIP-based content categorization
 ├── face_detector.py          # MTCNN face detection & cropping
 ├── requirements.txt          # Python dependencies
-├── Dockerfile               # Docker container configuration
-├── docker-compose.yml       # Docker Compose setup
-├── uml_class_simple.puml    # Class diagram
-└── uml_pipeline_simple.puml # Pipeline flow diagram
+├── Dockerfile                # Docker container configuration
+├── docker-compose.yml        # Docker Compose setup
+└── DOCKER_README.md          # Docker deployment guide
 ```
 
 ## Installation & Usage
@@ -171,14 +170,6 @@ See `DOCKER_README.md` for complete Docker documentation including:
 - Troubleshooting
 - Production deployment tips
 - Model caching
-
-## UML Diagrams
-
-Two simple diagrams are provided:
-- `uml_class_simple.puml` - Class structure
-- `uml_pipeline_simple.puml` - Pipeline flow
-
-View at: http://www.plantuml.com/plantuml/uml/
 
 ## Limitations & Future Considerations
 
@@ -293,6 +284,16 @@ If using this project for research:
 ```
 Deepfake Detection System (2024-2025)
 Multi-stage video deepfake detection using CLIP, MTCNN, and specialized detectors
+```
+
+**Dataset Used**:
+```bibtex
+@inproceedings{Celeb_DF_cvpr20,
+  author = {Yuezun Li and Xin Yang and Pu Sun and Honggang Qi and Siwei Lyu},
+  title = {Celeb-DF: A Large-scale Challenging Dataset for DeepFake Forensics},
+  booktitle = {IEEE Conference on Computer Vision and Patten Recognition (CVPR)},
+  year = {2020}
+}
 ```
 
 **Models**:
