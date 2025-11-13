@@ -1,223 +1,315 @@
 # Deepfake Detection System
 
-A web-based deepfake detection tool built with Flask and Python. This defensive security application allows users to upload images and analyze them for potential AI-generated or manipulated content.
+A multi-stage deepfake detection system for video analysis. This tool uses CLIP for content categorization and specialized AI detectors to identify deepfakes and AI-generated content in videos.
 
 ## Features
 
-- Clean, modern web interface with drag-and-drop upload
-- Image upload and analysis
-- Confidence scoring and detailed results
-- Modular architecture for easy ML model integration
-- RESTful API for backend processing
-- Responsive design for mobile and desktop
+- **Video Analysis**: Upload videos (up to 60 seconds, max 200MB)
+- **Multi-Stage Detection Pipeline**:
+  - CLIP categorizes each frame (human face vs. other content)
+  - MTCNN detects and crops faces from frames
+  - Specialized detectors for different content types
+- **High Accuracy**: 94.44% for faces, 99.23% for general content
+- **Frame-by-Frame Analysis**: See results for every frame
+- **Automatic Downscaling**: Videos > 1920x1080 are automatically downscaled
+- **Web Interface**: Clean Streamlit-based UI
+- **Docker Support**: Easy deployment with Docker/Docker Compose
+
+## How It Works
+
+```
+Video Upload → Validation → Downscaling (if needed) → Frame Extraction (0.5s intervals)
+    ↓
+For Each Frame:
+    ↓
+CLIP Classification → "human_face" or "other"
+    ↓                        ↓
+Face Pipeline          General Pipeline
+    ↓                        ↓
+MTCNN Detection       General AI Detector
+    ↓                   (99.23% accuracy)
+Crop Face
+    ↓
+Face Deepfake Detector
+(94.44% accuracy)
+    ↓
+Aggregate Results → Overall Verdict
+```
+
+## Models Used
+
+| Component | Model | Purpose | Accuracy |
+|-----------|-------|---------|----------|
+| **Frame Classifier** | openai/clip-vit-base-patch32 | Categorize content | Zero-shot |
+| **Face Detector** | MTCNN (facenet-pytorch) | Detect & crop faces | Detection only |
+| **Face Deepfake Detector** | prithivMLmods/deepfake-detector-model-v1 | Detect face deepfakes | 94.44% |
+| **General AI Detector** | Ateeqq/ai-vs-human-image-detector | Detect AI-generated content | 99.23% |
+
+**Total Model Size**: ~1.4GB (downloaded on first run)
 
 ## Project Structure
 
 ```
-deepfake-detector/
-├── app.py                 # Flask web server
-├── detector.py            # Deepfake detection logic
-├── requirements.txt       # Python dependencies
-├── templates/
-│   └── index.html        # Frontend HTML
-├── static/
-│   ├── css/
-│   │   └── styles.css    # Styles
-│   └── js/
-│       └── app.js        # Frontend JavaScript
-├── uploads/              # Uploaded images (created automatically)
-└── models/               # ML models directory
+Deepfake/
+├── streamlit_app.py          # Main Streamlit web interface
+├── detector.py               # Multi-stage detector & specialized detectors
+├── video_processor.py        # Video handling, frame extraction
+├── frame_classifier.py       # CLIP-based content categorization
+├── face_detector.py          # MTCNN face detection & cropping
+├── requirements.txt          # Python dependencies
+├── Dockerfile               # Docker container configuration
+├── docker-compose.yml       # Docker Compose setup
+├── uml_class_simple.puml    # Class diagram
+└── uml_pipeline_simple.puml # Pipeline flow diagram
 ```
 
-## Installation
+## Installation & Usage
 
-### Prerequisites
+### Option 1: Docker (Recommended)
 
-- Python 3.8 or higher
-- pip (Python package manager)
+**Prerequisites**: Docker & Docker Compose installed
 
-### Setup Steps
-
-1. Navigate to the project directory:
 ```bash
-cd deepfake-detector
+# Build and start
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Access at http://localhost:8501
 ```
 
-2. Create a virtual environment (recommended):
-```bash
-python -m venv venv
-```
+**First run**: Models will download (~1.4GB, takes 5-15 minutes)
 
-3. Activate the virtual environment:
-- On Linux/Mac:
-```bash
-source venv/bin/activate
-```
-- On Windows:
-```bash
-venv\Scripts\activate
-```
+### Option 2: Local Installation
 
-4. Install dependencies:
+**Prerequisites**: Python 3.10+
+
 ```bash
+# Install dependencies
 pip install -r requirements.txt
+
+# Run the app
+streamlit run streamlit_app.py
+
+# Access at http://localhost:8501
 ```
 
-## Usage
+## Video Requirements
 
-1. Start the Flask server:
-```bash
-python app.py
-```
+- **Formats**: MP4, AVI, MOV, MKV, WEBM
+- **Max Duration**: 60 seconds
+- **Max File Size**: 200MB
+- **Min Resolution**: 854x480 (480p)
+- **Max Resolution**: 1920x1080 (1080p) - auto-downscaled if larger
 
-2. Open your web browser and navigate to:
-```
-http://localhost:5000
-```
+## Analysis Process
 
-3. Upload an image using the drag-and-drop interface or file selector
-
-4. Click "Analyze Image" to process the image
-
-5. View the results showing whether the image appears to be authentic or a deepfake
-
-## API Endpoints
-
-### POST `/api/analyze`
-Upload and analyze an image for deepfake detection.
-
-**Request:**
-- Method: POST
-- Content-Type: multipart/form-data
-- Body: `image` file (PNG, JPG, JPEG, GIF, BMP, max 16MB)
-
-**Response:**
-```json
-{
-    "success": true,
-    "is_deepfake": false,
-    "confidence": 75.23,
-    "confidence_label": "high",
-    "verdict": "APPEARS AUTHENTIC",
-    "image_info": {
-        "width": 1920,
-        "height": 1080,
-        "format": "JPEG"
-    },
-    "note": "This is a placeholder implementation..."
-}
-```
-
-### GET `/api/health`
-Check if the backend service is running.
-
-**Response:**
-```json
-{
-    "status": "ok",
-    "detector": "ready"
-}
-```
-
-## Integrating a Real ML Model
-
-The current implementation uses a placeholder for the deepfake detection logic. To integrate a real ML model:
-
-1. **Train or obtain a deepfake detection model**
-   - TensorFlow/Keras (.h5, .pb)
-   - PyTorch (.pt, .pth)
-   - ONNX (.onnx)
-
-2. **Place your model in the `models/` directory**
-
-3. **Update `detector.py`:**
-
-```python
-# Example for TensorFlow/Keras
-def _load_model(self, model_path):
-    import tensorflow as tf
-    self.model = tf.keras.models.load_model(model_path)
-
-# Example for PyTorch
-def _load_model(self, model_path):
-    import torch
-    self.model = torch.load(model_path)
-    self.model.eval()
-```
-
-4. **Update preprocessing in `_preprocess_image()`:**
-   - Resize images to match your model's input size
-   - Normalize pixel values
-   - Convert to appropriate format (numpy array, tensor, etc.)
-
-5. **Update inference in `_run_inference()`:**
-   - Replace placeholder logic with actual model prediction
-   - Process model output to get confidence scores
-
-6. **Uncomment relevant dependencies in `requirements.txt`:**
-```txt
-tensorflow==2.15.0  # For TensorFlow models
-# or
-torch==2.1.1        # For PyTorch models
-```
-
-## Future Enhancements
-
-- Video analysis with frame extraction
-- Batch processing for multiple images
-- Model comparison (test multiple models)
-- Detailed heatmaps showing manipulated regions
-- User authentication and history
-- Database for storing analysis results
-- Advanced reporting and statistics
-
-## Security Notice
-
-This tool is designed for defensive security purposes only. It should be used to:
-- Detect potentially manipulated media
-- Verify authenticity of images
-- Research deepfake detection techniques
-- Educational purposes
+1. **Upload Video**: Drag and drop or select video file
+2. **Validation**: System checks duration and resolution
+3. **Downscaling**: If resolution > 1920x1080, video is automatically downscaled
+4. **Frame Extraction**: Extracts 1 frame every 0.5 seconds
+5. **Multi-Stage Detection**:
+   - CLIP categorizes each frame
+   - If "human_face": MTCNN crops face → Face Deepfake Detector
+   - If "other": General AI Detector
+   - Fallback to General Detector if no face found
+6. **Aggregation**: Overall verdict based on % of fake frames (>60% = LIKELY DEEPFAKE)
+7. **Results**: Frame-by-frame analysis + overall verdict
 
 ## Technology Stack
 
-- **Backend:** Flask (Python web framework)
-- **Frontend:** HTML5, CSS3, JavaScript (ES6+)
-- **Image Processing:** Pillow (PIL)
-- **ML Ready:** Supports TensorFlow, PyTorch, ONNX integration
+- **Frontend**: Streamlit 1.30+
+- **ML Framework**: PyTorch 2.6+ (CPU-only)
+- **Transformers**: HuggingFace Transformers 4.40+
+- **Video Processing**: OpenCV 4.8
+- **Face Detection**: facenet-pytorch (MTCNN)
+- **Content Classification**: CLIP (openai/clip-vit-base-patch32)
+- **Deployment**: Docker, Docker Compose
+- **Language**: Python 3.10
+
+## System Requirements
+
+### Local Installation
+- Python 3.10+
+- 8GB RAM minimum
+- 10GB disk space (for models)
+- Internet connection (first run only)
+
+### Docker Installation
+- Docker 20.10+
+- Docker Compose 1.29+
+- 8GB RAM
+- 10GB disk space
+
+## Configuration
+
+### Video Processor Settings
+Located in `video_processor.py`:
+```python
+MAX_DURATION_SECONDS = 60    # Max video duration
+MAX_WIDTH = 1920             # Max resolution width
+MAX_HEIGHT = 1080            # Max resolution height
+MIN_WIDTH = 854              # Min resolution width (480p)
+MIN_HEIGHT = 480             # Min resolution height
+```
+
+### Detection Thresholds
+Located in `detector.py`:
+```python
+# Both detectors use 70% threshold
+is_deepfake = ai_confidence > 0.7
+
+# Video verdict threshold (in video_processor.py)
+overall_verdict = 'LIKELY DEEPFAKE' if fake_percentage > 0.6 else 'LIKELY AUTHENTIC'
+```
+
+## Docker Details
+
+See `DOCKER_README.md` for complete Docker documentation including:
+- Resource limits and configuration
+- Troubleshooting
+- Production deployment tips
+- Model caching
+
+## UML Diagrams
+
+Two simple diagrams are provided:
+- `uml_class_simple.puml` - Class structure
+- `uml_pipeline_simple.puml` - Pipeline flow
+
+View at: http://www.plantuml.com/plantuml/uml/
+
+## Limitations & Future Considerations
+
+### Current Limitations
+- **Video only**: No single image analysis
+- **60 second limit**: Longer videos must be trimmed
+- **CPU-only**: No GPU acceleration (for compatibility)
+- **Model age**: Trained on 2023-2024 era deepfakes/AI content
+- **Temporal analysis**: Analyzes frames independently (no motion analysis)
+
+### Obsolescence Risk
+Detection models are trained on specific generation techniques. Newer AI models (Sora 2, latest diffusion models, advanced face swaps) may not be effectively detected without retraining on current datasets.
+
+**Estimated Relevance**: 6-18 months without model updates
+
+### Mitigation Strategies
+To extend relevance:
+- Regular model retraining on new synthetic media
+- Ensemble of multiple detector versions
+- Complementary metadata/forensics analysis
+- Authentication-based approaches (C2PA, blockchain verification)
+
+## Performance
+
+- **First Run**: 5-15 minutes (model download)
+- **Video Processing**: ~2-5 seconds per frame
+- **Memory Usage**: 4-8GB during analysis
+- **Recommended**: 4 CPU cores for smooth operation
 
 ## Troubleshooting
 
-### Port already in use
-If port 5000 is already in use, change it in `app.py`:
-```python
-app.run(debug=True, host='0.0.0.0', port=5001)
-```
-
-### File upload errors
-- Ensure the `uploads/` directory exists and is writable
-- Check file size (max 16MB by default)
-- Verify file format is supported
-
-### Module import errors
-Make sure all dependencies are installed:
+### Docker Issues
 ```bash
-pip install -r requirements.txt
+# Check logs
+docker-compose logs deepfake-detector
+
+# Restart
+docker-compose restart
+
+# Rebuild
+docker-compose build --no-cache
 ```
 
-## License
+### Port Conflicts
+Change port in `docker-compose.yml`:
+```yaml
+ports:
+  - "8502:8501"  # Use port 8502 instead
+```
 
-This project is for educational and defensive security purposes.
+### Out of Memory
+Increase Docker memory limit or reduce video resolution/duration
+
+### Models Not Downloading
+Check internet connection and HuggingFace availability:
+```bash
+curl -I https://huggingface.co
+```
+
+## Security Notice
+
+This tool is designed for:
+- ✅ Detecting manipulated media
+- ✅ Verifying content authenticity
+- ✅ Research and educational purposes
+- ✅ Defensive security applications
+
+**Not for**:
+- ❌ Creating deepfakes
+- ❌ Malicious content generation
+- ❌ Privacy invasion
+
+## API Structure
+
+While primarily a web UI, the detection system can be used programmatically:
+
+```python
+from detector import MultiStageDetector
+from video_processor import VideoProcessor, analyze_extracted_frames
+
+# Initialize
+detector = MultiStageDetector(verbose=False)
+processor = VideoProcessor()
+
+# Process video
+frames = processor.extract_frames('video.mp4', frame_interval_seconds=0.5)
+results = analyze_extracted_frames(frames, detector)
+
+# Get verdict
+print(results['aggregate']['overall_verdict'])
+print(f"{results['aggregate']['fake_percentage']}% of frames are deepfakes")
+```
 
 ## Contributing
 
-To contribute to this project:
-1. Test with various image types
-2. Implement real ML models
-3. Improve UI/UX
-4. Add video processing capabilities
-5. Enhance error handling
+Areas for improvement:
+1. GPU acceleration support
+2. Longer video support (>60s)
+3. Temporal consistency analysis
+4. Model ensemble approaches
+5. Real-time video stream analysis
+6. Additional model integrations
 
-## Contact
+## License
 
-For questions or issues, please create an issue in the project repository.
+Educational and defensive security purposes.
+
+## Citation
+
+If using this project for research:
+
+```
+Deepfake Detection System (2024-2025)
+Multi-stage video deepfake detection using CLIP, MTCNN, and specialized detectors
+```
+
+**Models**:
+- CLIP: Radford et al., "Learning Transferable Visual Models From Natural Language Supervision"
+- MTCNN: Zhang et al., "Joint Face Detection and Alignment using Multi-task Cascaded Convolutional Networks"
+- Face Detector: prithivMLmods/deepfake-detector-model-v1
+- General Detector: Ateeqq/ai-vs-human-image-detector
+
+## Acknowledgments
+
+- OpenAI for CLIP
+- HuggingFace for model hosting and Transformers library
+- facenet-pytorch for MTCNN implementation
+- Model creators: prithivMLmods, Ateeqq
+
+---
+
+**Last Updated**: 2025
+**Status**: Active Development
+**Version**: 1.0
