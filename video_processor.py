@@ -17,7 +17,7 @@ class VideoProcessor:
     # Configuration constants
     MAX_DURATION_SECONDS = 60  # Maximum video duration: 1 minute
     MAX_WIDTH = 1920  # Maximum resolution width (1080p)
-    MAX_HEIGHT = 1080  # Maximum resolution height
+    MAX_HEIGHT = 1920  # Maximum resolution height
     MIN_WIDTH = 854  # Minimum resolution width (480p)
     MIN_HEIGHT = 480  # Minimum resolution height
 

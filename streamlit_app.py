@@ -40,6 +40,14 @@ st.markdown("""
         padding: 0.5rem;
         margin: 0.5rem;
     }
+    /* Limit video preview height */
+    [data-testid="stVideo"] {
+        max-height: 400px;
+    }
+    [data-testid="stVideo"] video {
+        max-height: 400px;
+        object-fit: contain;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -72,7 +80,7 @@ if uploaded_video is not None:
         st.error(f"File size ({file_size_mb:.1f} MB) exceeds maximum allowed size ({max_file_size_mb} MB). Please upload a smaller video.")
         st.stop()
 
-    col1, col2 = st.columns([2, 1])
+    col1, col2 = st.columns([1, 1])
 
     with col1:
         st.write("**Uploaded Video:**")
@@ -143,7 +151,7 @@ if uploaded_video is not None:
                 st.caption(f"📊 Analyzing {len(frames)} frames from this video")
 
                 # Display extracted frames in a grid (smaller thumbnails)
-                cols_per_row = 5
+                cols_per_row = 10
                 for i in range(0, len(frames), cols_per_row):
                     cols = st.columns(cols_per_row)
                     for j, col in enumerate(cols):
@@ -211,7 +219,7 @@ if uploaded_video is not None:
 
                 # Display results in a grid (compact layout)
                 frame_results = results['frame_results']
-                results_cols_per_row = 5
+                results_cols_per_row = 10
 
                 for i in range(0, len(frame_results), results_cols_per_row):
                     cols = st.columns(results_cols_per_row)
