@@ -10,11 +10,20 @@ streamlit>=1.30.0
 transformers>=4.40.0
 
 # PyTorch CPU-only version (smaller, faster download)
+# Upgraded to >= 2.6 for security fix (CVE-2025-32434) - required for CLIP model loading
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.2.0+cpu
-torchvision==0.17.0+cpu
+torch>=2.6.0
+torchvision>=0.21.0
 
 # Optional additional ML libraries
-# opencv-python==4.8.1.78
+opencv-python==4.8.1.78  # Required for video frame extraction
+
+# CLIP for frame categorization
+ftfy>=6.1.0  # Required by CLIP
+regex>=2023.0.0  # Required by CLIP
+
+# Face detection for cropping faces from frames
+facenet-pytorch>=2.5.3  # Includes MTCNN face detector
+
 # scikit-learn==1.3.2
 # onnxruntime==1.16.3

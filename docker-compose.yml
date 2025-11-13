@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  deepfake-detector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: deepfake-detector
+    ports:
+      - "8501:8501"
+    volumes:
+      # Mount a volume for model cache to persist downloads between container restarts
+      - model_cache:/root/.cache/huggingface
+      # Optional: Mount a local directory for uploading videos
+      # - ./uploads:/app/uploads
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Optional: Configure Streamlit settings
+      - STREAMLIT_SERVER_MAX_UPLOAD_SIZE=200
+      - STREAMLIT_SERVER_ENABLE_CORS=false
+      - STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=true
+    restart: unless-stopped
+    # Resource limits (adjust based on your system)
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
+          cpus: '2.0'
+          memory: 4G
+
+volumes:
+  model_cache:
+    driver: local

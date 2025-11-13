@@ -2,35 +2,29 @@ import streamlit as st
 from PIL import Image
 import os
 import tempfile
-from detector import DeepfakeDetector
+from detector import DeepfakeDetector, MultiStageDetector
+from video_processor import VideoProcessor, analyze_extracted_frames
 
 # Page configuration
 st.set_page_config(
-    page_title="AI Image Detector - Testing",
-    page_icon="🔍",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="Deepfake Detector",
+    layout="wide"
 )
 
-# Custom CSS for better styling
+# Custom CSS for styling
 st.markdown("""
 <style>
     .main-header {
-        font-size: 3rem;
+        font-size: 2.5rem;
         font-weight: bold;
         text-align: center;
-        color: #1f77b4;
-        margin-bottom: 1rem;
-    }
-    .subtitle {
-        text-align: center;
-        color: #666;
-        margin-bottom: 2rem;
+        margin-bottom: 0.5rem;
     }
     .result-box {
-        padding: 2rem;
+        padding: 1.5rem;
         border-radius: 10px;
         margin: 1rem 0;
+        text-align: center;
     }
     .authentic {
         background-color: #d4edda;
@@ -40,289 +34,319 @@ st.markdown("""
         background-color: #f8d7da;
         border: 2px solid #dc3545;
     }
-    .metric-container {
-        background-color: #f8f9fa;
-        padding: 1rem;
+    .frame-card {
+        border: 1px solid #ddd;
         border-radius: 8px;
-        margin: 0.5rem 0;
+        padding: 0.5rem;
+        margin: 0.5rem;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state
+# Initialize detector (load model once)
 if 'detector' not in st.session_state:
-    with st.spinner('🔄 Loading AI detection model... (this may take ~1 minute on first run)'):
-        st.session_state.detector = DeepfakeDetector()
+    with st.spinner('Loading multi-stage deepfake detection system... (first run may take a few minutes)'):
+        st.session_state.detector = MultiStageDetector(verbose=False)
 
-# Sidebar
-with st.sidebar:
-    st.header("⚙️ Settings")
+# Header
+st.markdown('<h1 class="main-header">Deepfake Detector</h1>', unsafe_allow_html=True)
+st.markdown('<p style="text-align: center; color: #666;">Detect AI-generated images and videos</p>', unsafe_allow_html=True)
 
-    st.subheader("Model Info")
-    st.info("""
-    **Model**: Ateeqq/ai-vs-human-image-detector
+# Create tabs
+tab1, tab2 = st.tabs(["Image Analysis", "Video Analysis"])
 
-    **Accuracy**: 99.23%
-
-    **Detects**: All image types (faces, landscapes, art, etc.)
-
-    **Trained on**: Midjourney v6.1, FLUX, SD 3.5, GPT-4o
-    """)
-
-    st.subheader("Testing Features")
-    show_debug = st.checkbox("Show Debug Info", value=False)
-    show_raw_scores = st.checkbox("Show Raw Model Output", value=False)
-
-    st.subheader("Batch Testing")
-    st.write("Upload multiple images to test at once")
-
-# Main header
-st.markdown('<h1 class="main-header">🔍 AI Image Detector</h1>', unsafe_allow_html=True)
-st.markdown('<p class="subtitle">Development & Testing Interface | Powered by Streamlit</p>', unsafe_allow_html=True)
-
-# Create tabs for different testing modes
-tab1, tab2, tab3 = st.tabs(["📷 Single Image", "📁 Batch Testing", "📊 About"])
-
-# Tab 1: Single Image Testing
+# Tab 1: Single Image Analysis
 with tab1:
-    st.header("Upload an Image to Analyze")
+    st.subheader("Upload an Image")
 
     uploaded_file = st.file_uploader(
         "Choose an image file",
-        type=["png", "jpg", "jpeg", "gif", "bmp"],
-        help="Supported formats: PNG, JPG, JPEG, GIF, BMP (Max 16MB)"
+        type=["png", "jpg", "jpeg"],
+        help="Supported formats: PNG, JPG, JPEG",
+        key="image_uploader"
     )
 
     if uploaded_file is not None:
-        # Create two columns for layout
         col1, col2 = st.columns([1, 1])
 
         with col1:
-            st.subheader("📸 Uploaded Image")
-            # Reset file pointer to beginning
+            st.write("**Uploaded Image:**")
             uploaded_file.seek(0)
             image = Image.open(uploaded_file)
             st.image(image, width='stretch')
 
-            # Show image metadata
-            st.caption(f"📏 Size: {image.size[0]} x {image.size[1]} | Format: {image.format}")
-
         with col2:
-            st.subheader("🔬 Analysis")
+            st.write("**Analysis:**")
 
-            # Analyze button
-            if st.button("🚀 Analyze Image", type="primary", use_container_width=True):
-                with st.spinner('🧠 Analyzing image...'):
-                    # Save uploaded file temporarily
+            if st.button("Analyze Image", type="primary", width='stretch'):
+                with st.spinner('Analyzing...'):
+                    # Save temporarily
                     with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as tmp_file:
                         tmp_file.write(uploaded_file.getvalue())
                         tmp_path = tmp_file.name
 
-                    # Run detection
+                    # Analyze
                     result = st.session_state.detector.analyze(tmp_path)
-
-                    # Clean up temp file
                     os.unlink(tmp_path)
 
-                    # Display results
+                    # Display result
                     if result['success']:
-                        # Verdict
                         is_ai = result['is_deepfake']
                         verdict_class = "ai-generated" if is_ai else "authentic"
-                        verdict_color = "🔴" if is_ai else "🟢"
+                        verdict_emoji = "🔴" if is_ai else "🟢"
 
                         st.markdown(f'<div class="result-box {verdict_class}">', unsafe_allow_html=True)
-                        st.markdown(f"### {verdict_color} {result['verdict']}")
-                        st.markdown(f"**Confidence**: {result['confidence']}%")
-                        st.markdown(f"**Level**: {result['confidence_label'].upper()}")
+                        st.markdown(f"### {verdict_emoji} {result['verdict']}")
+                        st.markdown(f"**Confidence:** {result['confidence']}%")
                         st.markdown('</div>', unsafe_allow_html=True)
 
-                        # Metrics
-                        st.subheader("📊 Detailed Metrics")
-
-                        metric_col1, metric_col2 = st.columns(2)
-
-                        with metric_col1:
-                            st.metric(
-                                label="AI Probability",
-                                value=f"{result['confidence']}%",
-                                delta=f"{result['confidence'] - 50:+.2f}% from threshold"
-                            )
-
-                        with metric_col2:
-                            st.metric(
-                                label="Human Probability",
-                                value=f"{100 - result['confidence']:.2f}%"
-                            )
-
-                        # Progress bar visualization
-                        st.subheader("📈 Confidence Visualization")
+                        # Show confidence bar
                         st.progress(result['confidence'] / 100)
 
-                        # Model info
-                        if show_debug:
-                            st.subheader("🔧 Debug Information")
-                            st.json(result)
+                        # Show category and detector info
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            category = result.get('category', 'unknown')
+                            category_label = {
+                                'human_face': 'Human Face',
+                                'other': 'Object/Scene',
+                                'unknown': 'Unknown'
+                            }.get(category, category)
+                            st.info(f"**Category:** {category_label}")
 
-                        # Note
-                        st.info(f"ℹ️ {result.get('note', 'Analysis complete')}")
+                        with col_b:
+                            detector = result.get('detector_used', 'unknown')
+                            detector_label = {
+                                'face_specialized': 'Face Specialist (ViT)',
+                                'general': 'General AI Detector',
+                                'general (fallback)': 'General (Fallback)'
+                            }.get(detector, detector)
+                            st.info(f"**Detector:** {detector_label}")
 
                     else:
-                        st.error(f"❌ Error: {result.get('error', 'Unknown error occurred')}")
+                        st.error(f"Error: {result.get('error', 'Unknown error')}")
 
-# Tab 2: Batch Testing
+# Tab 2: Video Analysis
 with tab2:
-    st.header("Batch Image Analysis")
-    st.write("Upload multiple images to test them all at once - great for testing model performance!")
+    st.subheader("Upload a Video")
+    st.info("ℹ️ **Analysis:** All frames will be analyzed (1 frame every 0.5 seconds)")
 
-    uploaded_files = st.file_uploader(
-        "Choose multiple images",
-        type=["png", "jpg", "jpeg", "gif", "bmp"],
-        accept_multiple_files=True,
-        key="batch_uploader"
+    uploaded_video = st.file_uploader(
+        "Choose a video file",
+        type=["mp4", "avi", "mov", "mkv", "webm"],
+        help="Supported formats: MP4, AVI, MOV, MKV, WEBM. Max 1 minute duration.",
+        key="video_uploader"
     )
 
-    if uploaded_files:
-        st.write(f"📦 {len(uploaded_files)} images uploaded")
+    if uploaded_video is not None:
+        # Check file size (max 200MB)
+        max_file_size_mb = 200
+        file_size_mb = uploaded_video.size / (1024 * 1024)
 
-        if st.button("🚀 Analyze All Images", type="primary"):
-            results_summary = {"ai": 0, "human": 0, "total": len(uploaded_files)}
+        if file_size_mb > max_file_size_mb:
+            st.error(f"File size ({file_size_mb:.1f} MB) exceeds maximum allowed size ({max_file_size_mb} MB). Please upload a smaller video.")
+            st.stop()
 
-            # Progress bar for batch processing
-            progress_bar = st.progress(0)
-            status_text = st.empty()
+        col1, col2 = st.columns([2, 1])
 
-            # Results container
-            results_container = st.container()
+        with col1:
+            st.write("**Uploaded Video:**")
+            st.video(uploaded_video)
 
-            for idx, uploaded_file in enumerate(uploaded_files):
-                # Update progress
-                progress = (idx + 1) / len(uploaded_files)
-                progress_bar.progress(progress)
-                status_text.text(f"Processing {idx + 1}/{len(uploaded_files)}: {uploaded_file.name}")
+        with col2:
+            st.write("**Video Info:**")
+            st.info(f"Filename: {uploaded_video.name}\n\nSize: {file_size_mb:.1f} MB")
 
-                # Save and analyze
-                with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as tmp_file:
-                    tmp_file.write(uploaded_file.getvalue())
-                    tmp_path = tmp_file.name
+        if st.button("Analyze Video", type="primary", width='stretch'):
+            # First, save and validate the video
+            with st.spinner('Validating video...'):
+                try:
+                    # Save video
+                    processor = VideoProcessor()
+                    video_path = processor.save_uploaded_video(uploaded_video)
 
-                result = st.session_state.detector.analyze(tmp_path)
-                os.unlink(tmp_path)
+                    # Validate duration
+                    validation = processor.validate_video(video_path)
 
-                # Count results
-                if result['success']:
-                    if result['is_deepfake']:
-                        results_summary['ai'] += 1
-                    else:
-                        results_summary['human'] += 1
+                    if not validation['valid']:
+                        st.error(validation['error'])
+                        os.unlink(video_path)
+                        st.stop()
 
-                # Display individual result
-                with results_container:
-                    col1, col2, col3 = st.columns([2, 3, 1])
-                    with col1:
-                        image = Image.open(uploaded_file)
-                        st.image(image, width=150)
-                    with col2:
-                        st.write(f"**{uploaded_file.name}**")
-                        if result['success']:
-                            verdict_emoji = "🔴" if result['is_deepfake'] else "🟢"
-                            st.write(f"{verdict_emoji} {result['verdict']}")
-                            st.write(f"Confidence: {result['confidence']}%")
-                        else:
-                            st.write("❌ Error analyzing")
-                    with col3:
-                        if result['success']:
-                            st.metric("Score", f"{result['confidence']}%")
+                    # Get video info
+                    video_info = processor.get_video_info(video_path)
 
-                    st.divider()
+                    # Downscale if necessary
+                    if validation['width'] > processor.MAX_WIDTH or validation['height'] > processor.MAX_HEIGHT:
+                        with st.spinner(f'Downscaling video from {validation["width"]}x{validation["height"]}...'):
+                            downscaled_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
+                            scale_info = processor.downscale_video(video_path, downscaled_path)
 
-            # Clear progress
-            progress_bar.empty()
-            status_text.empty()
+                            # Clean up original, use downscaled
+                            os.unlink(video_path)
+                            video_path = downscaled_path
 
-            # Summary
-            st.success("✅ Batch analysis complete!")
+                            st.info(f"Video downscaled from {scale_info['original_width']}x{scale_info['original_height']} to {scale_info['new_width']}x{scale_info['new_height']}")
 
-            st.subheader("📊 Summary")
-            summary_col1, summary_col2, summary_col3 = st.columns(3)
+                            # Update video info with new dimensions
+                            video_info = processor.get_video_info(video_path)
 
-            with summary_col1:
-                st.metric("Total Images", results_summary['total'])
-            with summary_col2:
-                st.metric("AI-Generated", results_summary['ai'])
-            with summary_col3:
-                st.metric("Authentic", results_summary['human'])
+                except Exception as e:
+                    st.error(f"Error validating video: {str(e)}")
+                    if 'video_path' in locals() and os.path.exists(video_path):
+                        os.unlink(video_path)
+                    st.stop()
 
-# Tab 3: About
-with tab3:
-    st.header("📖 About This Testing Interface")
+            # Show video metadata
+            st.write("**Video Details:**")
+            info_cols = st.columns(4)
+            with info_cols[0]:
+                st.metric("Resolution", f"{video_info['width']}x{video_info['height']}")
+            with info_cols[1]:
+                st.metric("FPS", f"{video_info['fps']:.1f}")
+            with info_cols[2]:
+                st.metric("Frames", video_info['total_frames'])
+            with info_cols[3]:
+                st.metric("Duration", f"{video_info['duration_seconds']:.1f}s")
 
-    st.markdown("""
-    ## Purpose
-    This Streamlit interface is designed for **rapid testing and development** of the AI image detection system.
+            # Extract frames
+            with st.spinner('Extracting frames from video (1 frame every 0.5 seconds)...'):
+                try:
+                    st.write("---")
+                    st.subheader("Extracted Frames")
+                    frames = processor.extract_frames(video_path)
+                    st.caption(f"📊 Analyzing {len(frames)} frames from this video")
 
-    ## Why Use This?
-    - ✅ **Fast Iteration**: Test new features without touching HTML/CSS/JS
-    - ✅ **Easy Debugging**: See raw outputs and debug info easily
-    - ✅ **Batch Testing**: Test multiple images at once
-    - ✅ **Clean Separation**: ML logic testing separate from UI development
+                    # Display extracted frames in a grid (smaller thumbnails)
+                    cols_per_row = 5
+                    for i in range(0, len(frames), cols_per_row):
+                        cols = st.columns(cols_per_row)
+                        for j, col in enumerate(cols):
+                            idx = i + j
+                            if idx < len(frames):
+                                with col:
+                                    st.image(frames[idx], width='stretch')
+                                    st.caption(f"Frame {idx + 1}", unsafe_allow_html=False)
 
-    ## Workflow
-    1. **Test here first** - Verify ML functionality works correctly
-    2. **Debug easily** - Use debug mode to see raw outputs
-    3. **Batch test** - Test model on multiple images
-    4. **Port to Flask** - Once verified, implement in production UI
+                except Exception as e:
+                    st.error(f"Error extracting frames: {str(e)}")
+                    if 'video_path' in locals() and os.path.exists(video_path):
+                        os.unlink(video_path)
+                    st.stop()
 
-    ## Technical Details
-    - **Framework**: Streamlit (Python-only web framework)
-    - **Model**: Same `detector.py` used by Flask app
-    - **Purpose**: Development & Testing ONLY
-    - **Production**: Use Flask app for final product
+            # Now analyze the frames
+            with st.spinner('Analyzing frames for deepfakes...'):
+                try:
+                    # Analyze the already-extracted frames
+                    results = analyze_extracted_frames(frames, st.session_state.detector)
+                    os.unlink(video_path)
 
-    ## Features Not in Flask Version
-    - 🔄 Batch image processing
-    - 🐛 Debug mode with raw outputs
-    - 📊 Visual confidence metrics
-    - ⚡ Faster prototyping of new features
+                    # Overall verdict
+                    st.write("---")
+                    st.subheader("Overall Verdict")
 
-    ## Model Information
-    - **Name**: Ateeqq/ai-vs-human-image-detector
-    - **Architecture**: SiglipForImageClassification
-    - **Accuracy**: 99.23%
-    - **Training Data**: 60k AI + 60k Human images
-    - **Detects**: Midjourney, FLUX, Stable Diffusion, GPT-4o, and more
+                    aggregate = results['aggregate']
+                    overall_is_fake = aggregate['overall_verdict'] == 'LIKELY DEEPFAKE'
+                    verdict_class = "ai-generated" if overall_is_fake else "authentic"
+                    verdict_emoji = "🔴" if overall_is_fake else "🟢"
 
-    ---
+                    st.markdown(f'<div class="result-box {verdict_class}">', unsafe_allow_html=True)
+                    st.markdown(f"### {verdict_emoji} {aggregate['overall_verdict']}")
+                    st.markdown(f"**{aggregate['deepfake_frames']}** out of **{results['frames_analyzed']}** frames detected as AI-generated ({aggregate.get('fake_percentage', 0)}%)")
+                    st.markdown('</div>', unsafe_allow_html=True)
 
-    💡 **Pro Tip**: Use this for testing, then implement features in the Flask app for a polished production interface!
+                    # Show category and detector breakdown
+                    if 'category_breakdown' in aggregate and 'detector_breakdown' in aggregate:
+                        st.write("**Analysis Breakdown:**")
+                        breakdown_cols = st.columns(2)
+
+                        with breakdown_cols[0]:
+                            st.write("*Categories Detected:*")
+                            for category, count in aggregate['category_breakdown'].items():
+                                category_label = {
+                                    'human_face': 'Human Face',
+                                    'other': 'Object/Scene',
+                                    'unknown': 'Unknown'
+                                }.get(category, category)
+                                st.write(f"- {category_label}: {count} frame(s)")
+
+                        with breakdown_cols[1]:
+                            st.write("*Detectors Used:*")
+                            for detector, count in aggregate['detector_breakdown'].items():
+                                detector_label = {
+                                    'face_specialized': 'Face Specialist (ViT)',
+                                    'general': 'General AI Detector',
+                                    'general (fallback)': 'General (Fallback)'
+                                }.get(detector, detector)
+                                st.write(f"- {detector_label}: {count} frame(s)")
+
+                    # Frame-by-frame results
+                    st.write("---")
+                    st.subheader("Frame Analysis Results")
+
+                    # Display results in a grid (compact layout)
+                    frame_results = results['frame_results']
+                    results_cols_per_row = 5
+
+                    for i in range(0, len(frame_results), results_cols_per_row):
+                        cols = st.columns(results_cols_per_row)
+
+                        for j, col in enumerate(cols):
+                            idx = i + j
+                            if idx < len(frame_results):
+                                frame_result = frame_results[idx]
+                                frame_num = frame_result['frame_number']
+                                is_fake = frame_result['is_deepfake']
+                                confidence = frame_result['confidence']
+                                frame_img = frame_result['frame_image']
+
+                                with col:
+                                    # Show frame thumbnail (smaller)
+                                    st.image(frame_img, width='stretch')
+
+                                    # Show verdict (compact)
+                                    verdict_emoji = "🔴" if is_fake else "🟢"
+                                    verdict_text = "Fake" if is_fake else "Real"
+                                    st.markdown(f"**#{frame_num}** {verdict_emoji} {verdict_text}")
+                                    st.caption(f"Confidence: {confidence}%")
+
+                                    # Show category and detector (compact)
+                                    category = frame_result.get('category', 'unknown')
+                                    category_icon = '👤' if category == 'human_face' else '🖼️'
+                                    detector = frame_result.get('detector_used', 'unknown')
+                                    detector_short = 'Face' if 'face' in detector else 'General'
+
+                                    st.caption(f"{category_icon} {detector_short}")
+
+                    # Show success message at the end
+                    st.success("Analysis complete!")
+
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
+                    if 'video_path' in locals() and os.path.exists(video_path):
+                        os.unlink(video_path)
+
+# Sidebar with information
+with st.sidebar:
+    st.header("About")
+
+    st.write("""
+    This tool uses a **multi-stage detection system** to analyze images and videos for deepfakes.
+
+    **How it works:**
+    1. **Frame Classification:** CLIP categorizes each frame
+    2. **Specialized Detection:**
+       - Human faces → Face-specific ViT detector
+       - Other content → General AI detector
+
+    **Models Used:**
+    - **CLIP:** openai/clip-vit-base-patch32 (categorization)
+    - **Face Detector:** MTCNN (face detection & cropping)
+    - **Face Deepfake:** prithivMLmods/deepfake-detector-model-v1 (94.44% accuracy)
+    - **General AI:** Ateeqq/ai-vs-human-image-detector (99.23% accuracy)
+
+    **Note:** This multi-stage approach provides better accuracy by using specialized models for different content types.
     """)
 
-    st.subheader("🔗 Comparison")
-
-    comparison_col1, comparison_col2 = st.columns(2)
-
-    with comparison_col1:
-        st.markdown("""
-        ### Streamlit (This App)
-        - ✅ Pure Python
-        - ✅ Rapid prototyping
-        - ✅ Easy debugging
-        - ✅ Batch processing
-        - ❌ Less customizable
-        - ❌ Different look/feel
-        """)
-
-    with comparison_col2:
-        st.markdown("""
-        ### Flask (Production)
-        - ✅ Full control
-        - ✅ Custom design
-        - ✅ Professional UI
-        - ✅ Better for portfolio
-        - ❌ More complex
-        - ❌ Slower iteration
-        """)
-
-# Footer
-st.divider()
-st.caption("🔬 Development & Testing Interface | Built with Streamlit | Using detector.py from Flask app")
+    st.write("---")
+    st.caption("Built with Streamlit, HuggingFace Transformers & CLIP")
