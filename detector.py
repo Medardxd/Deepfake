@@ -278,6 +278,10 @@ class FaceDeepfakeDetector:
                         ignore_mismatched_sizes=True
                     )
 
+                    # Set label mappings
+                    base_model.config.id2label = {0: "fake", 1: "real"}
+                    base_model.config.label2id = {"fake": 0, "real": 1}
+
                     # Load LoRA adapters
                     print(f"Loading LoRA adapters from {finetuned_path}...")
                     peft_model = PeftModel.from_pretrained(base_model, str(finetuned_path))
@@ -285,6 +289,10 @@ class FaceDeepfakeDetector:
                     # Merge LoRA weights into base model for pipeline compatibility
                     print("Merging LoRA weights into base model...")
                     model = peft_model.merge_and_unload()
+
+                    # Ensure labels are set on merged model
+                    model.config.id2label = {0: "fake", 1: "real"}
+                    model.config.label2id = {"fake": 0, "real": 1}
 
                     # Create pipeline with merged model
                     processor = AutoImageProcessor.from_pretrained(str(finetuned_path))
@@ -399,9 +407,10 @@ class FaceDeepfakeDetector:
                     label = pred['label'].lower()
                     score = pred['score']
 
-                    if 'fake' in label or 'deepfake' in label or 'synthetic' in label or 'ai' in label:
+                    # Handle both string labels and numeric labels (LABEL_0, LABEL_1)
+                    if 'fake' in label or 'deepfake' in label or 'synthetic' in label or 'ai' in label or 'label_0' in label or label == '0':
                         fake_score = score
-                    elif 'real' in label or 'authentic' in label or 'genuine' in label:
+                    elif 'real' in label or 'authentic' in label or 'genuine' in label or 'label_1' in label or label == '1':
                         real_score = score
 
                 return {
