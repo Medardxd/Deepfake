@@ -12,13 +12,15 @@ WORKDIR /app
 
 # Install system dependencies
 # - ffmpeg: Required for video processing
-# - libgl1-mesa-glx, libglib2.0-0: Required for OpenCV
+# - libgl1, libglib2.0-0: Required for OpenCV
 # - git: Required for some Python packages
+# - curl: Required for health check
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     git \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements file
