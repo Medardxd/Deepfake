@@ -31,9 +31,10 @@ class FaceDetector:
         self.thresholds = thresholds or [0.6, 0.7, 0.7]
         self.verbose = verbose
 
-        # Auto-detect device if not specified
+        # Force CPU for MTCNN due to RTX 5070 incompatibility
+        # TODO: Remove this when PyTorch supports sm_120
         if device is None:
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            self.device = "cpu"  # Force CPU to avoid CUDA sm_120 issues
         else:
             self.device = device
 

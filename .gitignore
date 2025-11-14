@@ -38,3 +38,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+celeb_df_processed/
+celeb_df_processed.zip
+training_logs/

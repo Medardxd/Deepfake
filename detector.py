@@ -252,18 +252,78 @@ class FaceDeepfakeDetector:
         """
         Load the face deepfake detection model.
         Model will be downloaded on first run.
+        Supports LoRA fine-tuned models from models/celeb_df_finetuned/
         """
         try:
-            print(f"Loading face deepfake detection model: {self.model_name}")
-            print("Note: First run will download the model, please wait...")
+            import os
+            from pathlib import Path
 
-            self.model = pipeline(
-                'image-classification',
-                model=self.model_name,
-                device=-1  # Use CPU (-1), change to 0 for GPU if available
-            )
+            # Check for fine-tuned model
+            finetuned_path = Path("models/celeb_df_finetuned")
 
-            print("Face deepfake detection model loaded successfully!")
+            if finetuned_path.exists() and (finetuned_path / "adapter_model.safetensors").exists():
+                print(f"🎯 Found fine-tuned LoRA model at {finetuned_path}")
+                print(f"Loading base model: {self.model_name}")
+                print("Note: First run will download the base model, please wait...")
+
+                # Import PEFT for LoRA
+                try:
+                    from peft import PeftModel
+                    from transformers import AutoModelForImageClassification, AutoImageProcessor
+
+                    # Load base model
+                    base_model = AutoModelForImageClassification.from_pretrained(
+                        self.model_name,
+                        num_labels=2,
+                        ignore_mismatched_sizes=True
+                    )
+
+                    # Load LoRA adapters
+                    print(f"Loading LoRA adapters from {finetuned_path}...")
+                    peft_model = PeftModel.from_pretrained(base_model, str(finetuned_path))
+
+                    # Merge LoRA weights into base model for pipeline compatibility
+                    print("Merging LoRA weights into base model...")
+                    model = peft_model.merge_and_unload()
+
+                    # Create pipeline with merged model
+                    processor = AutoImageProcessor.from_pretrained(str(finetuned_path))
+
+                    self.model = pipeline(
+                        'image-classification',
+                        model=model,
+                        image_processor=processor,
+                        device=-1  # Use CPU (-1), change to 0 for GPU if available
+                    )
+
+                    print("✅ Fine-tuned LoRA model loaded successfully!")
+                    print("   Model trained on Celeb-DF-v2 (85.9% accuracy, 83.8% F1)")
+
+                except ImportError:
+                    print("⚠️  PEFT library not found. Installing...")
+                    import subprocess
+                    subprocess.check_call(["pip", "install", "-q", "peft"])
+                    print("Please restart the script to use the fine-tuned model.")
+                    # Fall back to base model
+                    self.model = pipeline(
+                        'image-classification',
+                        model=self.model_name,
+                        device=-1
+                    )
+
+            else:
+                # Use original base model
+                print(f"Loading face deepfake detection model: {self.model_name}")
+                print("Note: First run will download the model, please wait...")
+                print("💡 Tip: Fine-tuned model not found. Place it in models/celeb_df_finetuned/ for better accuracy.")
+
+                self.model = pipeline(
+                    'image-classification',
+                    model=self.model_name,
+                    device=-1  # Use CPU (-1), change to 0 for GPU if available
+                )
+
+                print("Face deepfake detection model loaded successfully!")
 
         except Exception as e:
             print(f"Error loading face model: {e}")
@@ -394,13 +454,18 @@ class FaceDeepfakeDetector:
 
             # Extract deepfake confidence
             ai_confidence = predictions['ai_confidence']
+            real_confidence = predictions.get('human_confidence', 1.0 - ai_confidence)
+
             # Use higher threshold to reduce false positives (70% instead of 50%)
             is_deepfake = ai_confidence > 0.7
 
+            # Confidence in the actual prediction made
+            prediction_confidence = ai_confidence if is_deepfake else real_confidence
+
             # Determine confidence level label
-            if ai_confidence > 0.85 or ai_confidence < 0.15:
+            if prediction_confidence > 0.85:
                 confidence_label = 'high'
-            elif ai_confidence > 0.65 or ai_confidence < 0.35:
+            elif prediction_confidence > 0.65:
                 confidence_label = 'medium'
             else:
                 confidence_label = 'low'
@@ -409,9 +474,11 @@ class FaceDeepfakeDetector:
             result = {
                 'success': True,
                 'is_deepfake': is_deepfake,
-                'confidence': round(ai_confidence * 100, 2),
+                'confidence': round(prediction_confidence * 100, 2),
                 'confidence_label': confidence_label,
                 'verdict': 'DEEPFAKE FACE' if is_deepfake else 'AUTHENTIC FACE',
+                'fake_probability': round(ai_confidence * 100, 2),
+                'real_probability': round(real_confidence * 100, 2),
                 'image_info': {
                     'width': preprocessed['width'],
                     'height': preprocessed['height'],
