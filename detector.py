@@ -177,8 +177,8 @@ class DeepfakeDetector:
 
             # Extract AI confidence
             ai_confidence = predictions['ai_confidence']
-            # Use higher threshold to reduce false positives (70% instead of 50%)
-            is_deepfake = ai_confidence > 0.7
+            # Use threshold of 51% for classification
+            is_deepfake = ai_confidence > 0.51
 
             # Determine confidence level label
             if ai_confidence > 0.85 or ai_confidence < 0.15:
@@ -465,8 +465,8 @@ class FaceDeepfakeDetector:
             ai_confidence = predictions['ai_confidence']
             real_confidence = predictions.get('human_confidence', 1.0 - ai_confidence)
 
-            # Use higher threshold to reduce false positives (70% instead of 50%)
-            is_deepfake = ai_confidence > 0.7
+            # Use threshold of 51% for classification
+            is_deepfake = ai_confidence > 0.51
 
             # Confidence in the actual prediction made
             prediction_confidence = ai_confidence if is_deepfake else real_confidence
@@ -520,7 +520,7 @@ class MultiStageDetector:
 
     Pipeline:
     1. Classify frame category (human face vs other) using CLIP
-    2. If human face: detect & crop face → specialized face deepfake detector
+    2. If human face: specialized face deepfake detector (full frame)
     3. If other: general AI-generated image detector
     """
 
@@ -532,7 +532,6 @@ class MultiStageDetector:
             verbose: Print debug output during processing (default: False)
         """
         from frame_classifier import FrameClassifier
-        from face_detector import FaceDetector
 
         self.verbose = verbose
 
@@ -543,11 +542,7 @@ class MultiStageDetector:
         print("Loading frame classifier (CLIP)...")
         self.frame_classifier = FrameClassifier(verbose=verbose)
 
-        # Stage 2a: Face detector (for face cropping)
-        print("Loading face detector (MTCNN)...")
-        self.face_detector = FaceDetector(verbose=verbose)
-
-        # Stage 2b: Specialized detectors
+        # Stage 2: Specialized detectors
         print("Loading specialized deepfake detectors...")
         self.face_deepfake_detector = FaceDeepfakeDetector(verbose=verbose)
         self.general_detector = DeepfakeDetector(verbose=verbose)
@@ -607,63 +602,17 @@ class MultiStageDetector:
 
             # Stage 2: Apply specialized detector based on category
             if category == 'human_face':
-                # Human face pipeline
+                # Human face pipeline - use specialized face detector on full frame
                 if self.verbose:
-                    print("\n=== Stage 2a: Face Detection & Cropping ===")
+                    print("\n=== Stage 2: Face Deepfake Analysis ===")
 
-                # Detect and crop face
-                face_result = self.face_detector.detect_and_crop_faces(
-                    image_path,
-                    return_all=False,  # Only analyze the most prominent face
-                    margin=0.2
-                )
-
-                if not face_result['success'] or face_result['faces_found'] == 0:
-                    # No face detected, fallback to general detector
-                    if self.verbose:
-                        print("No face detected, falling back to general detector")
-
-                    result = self.general_detector.analyze(image_path)
-                    result['category'] = 'human_face_attempt'
-                    result['category_confidence'] = category_confidence
-                    result['detector_used'] = 'general (fallback)'
-                    result['face_detection_failed'] = True
-
-                    if temp_file:
-                        os.unlink(temp_file.name)
-
-                    return result
-
-                # Face detected successfully
-                cropped_face = face_result['cropped_faces'][0]
-                face_box = face_result['boxes'][0]
-                face_confidence = face_result['confidences'][0]
-
-                if self.verbose:
-                    print(f"Face detected with confidence: {face_confidence:.3f}")
-                    print(f"Face box: {face_box}")
-                    print("\n=== Stage 2b: Face Deepfake Analysis ===")
-
-                # Save cropped face temporarily
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp:
-                    cropped_face.save(tmp.name, 'JPEG')
-                    face_path = tmp.name
-
-                # Analyze with specialized face detector
-                result = self.face_deepfake_detector.analyze(face_path)
-
-                # Clean up temp face file
-                os.unlink(face_path)
+                # Analyze with specialized face detector (trained on full frames)
+                result = self.face_deepfake_detector.analyze(image_path)
 
                 # Add metadata
                 result['category'] = 'human_face'
                 result['category_confidence'] = category_confidence
                 result['detector_used'] = 'face_specialized'
-                result['face_info'] = {
-                    'face_detected': True,
-                    'face_confidence': face_confidence,
-                    'face_box': face_box
-                }
 
             else:
                 # Other content (objects, landscapes, etc.)

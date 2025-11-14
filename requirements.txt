@@ -22,8 +22,8 @@ opencv-python==4.8.1.78  # Required for video frame extraction
 ftfy>=6.1.0  # Required by CLIP
 regex>=2023.0.0  # Required by CLIP
 
-# Face detection for cropping faces from frames
-facenet-pytorch>=2.5.3  # Includes MTCNN face detector
+# Note: facenet-pytorch (MTCNN) removed - not needed since model works on full frames
+# Previously used: facenet-pytorch>=2.5.3
 
 # scikit-learn==1.3.2
 # onnxruntime==1.16.3
